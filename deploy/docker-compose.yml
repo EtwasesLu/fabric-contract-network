@@ -1,0 +1,192 @@
+
+version: '2'
+
+networks:
+  custom:
+
+services:
+
+  ca.org1.liqi.com:
+    image: hyperledger/fabric-ca:1.4.1
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-org1
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server/ca.org1.liqi.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server/4b76096a33aca605407e25844bdef767b53472f358a8b15573784d28f579a856_sk
+    ports:
+      - "7054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./crypto-config/peerOrganizations/org1.liqi.com/ca/:/etc/hyperledger/fabric-ca-server
+    container_name: ca_peerOrg1
+    networks:
+      - custom
+
+  ca.org2.liqi.com:
+    image: hyperledger/fabric-ca:1.4.1
+    environment:
+      - FABRIC_CA_HOME=/etc/hyperledger/fabric-ca-server
+      - FABRIC_CA_SERVER_CA_NAME=ca-org2
+      - FABRIC_CA_SERVER_CA_CERTFILE=/etc/hyperledger/fabric-ca-server/ca.org2.liqi.com-cert.pem
+      - FABRIC_CA_SERVER_CA_KEYFILE=/etc/hyperledger/fabric-ca-server/9e801eeb24b9f104e5da1471eb2af2ba35c566ea29583e2a2092eb7ec982a222_sk
+    ports:
+      - "8054:7054"
+    command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
+    volumes:
+      - ./crypto-config/peerOrganizations/org2.liqi.com/ca/:/etc/hyperledger/fabric-ca-server
+    container_name: ca_peerOrg2
+    networks:
+      - custom
+
+  orderer.liqi.com:
+    container_name: orderer.liqi.com
+    image: hyperledger/fabric-orderer:1.4.1
+    environment:
+      - ORDERER_GENERAL_LOGLEVEL=debug
+      - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
+      - ORDERER_GENERAL_GENESISMETHOD=file
+      - ORDERER_GENERAL_GENESISFILE=/etc/hyperledger/configtx/genesis.block
+      - ORDERER_GENERAL_LOCALMSPID=OrdererMSP
+      - ORDERER_GENERAL_LOCALMSPDIR=/etc/hyperledger/msp/orderer/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/orderer
+    command: orderer
+    networks:
+      - custom
+    ports:
+      - 7050:7050
+    volumes:
+        - ./config/:/etc/hyperledger/configtx
+        - ./crypto-config/ordererOrganizations/liqi.com/orderers/orderer.liqi.com/:/etc/hyperledger/msp/orderer
+        - ./crypto-config/peerOrganizations/org1.liqi.com/peers/peer0.org1.liqi.com/:/etc/hyperledger/msp/peerOrg1
+        - ./crypto-config/peerOrganizations/org2.liqi.com/peers/peer0.org2.liqi.com/:/etc/hyperledger/msp/peerOrg2
+
+  peer0.org1.liqi.com:
+    container_name: peer0.org1.liqi.com
+    image: hyperledger/fabric-peer:1.4.1
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer0.org1.liqi.com
+      - CORE_LOGGING_PEER=debug
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_ADDRESS=peer0.org1.liqi.com:7051
+      # # the following setting starts chaincode containers on the same
+      # # bridge network as the peers
+      # # https://docs.docker.com/compose/networking/
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=deploy_custom
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    ports:
+      - 7051:7051
+      - 7053:7053
+    networks:
+      - custom
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/org1.liqi.com/peers/peer0.org1.liqi.com/msp:/etc/hyperledger/fabric/msp
+        - ./crypto-config/peerOrganizations/org1.liqi.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.liqi.com
+
+  peer1.org1.liqi.com:
+    container_name: peer1.org1.liqi.com
+    image: hyperledger/fabric-peer:1.4.1
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer1.org1.liqi.com
+      - CORE_LOGGING_PEER=debug
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_ADDRESS=peer1.org1.liqi.com:7051
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=deploy_custom
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    networks:
+      - custom
+    ports:
+      - 7056:7051
+      - 7058:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/org1.liqi.com/peers/peer1.org1.liqi.com/msp:/etc/hyperledger/fabric/msp
+        - ./crypto-config/peerOrganizations/org1.liqi.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.liqi.com
+
+  peer0.org2.liqi.com:
+    container_name: peer0.org2.liqi.com
+    image: hyperledger/fabric-peer:1.4.1
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer0.org2.liqi.com
+      - CORE_LOGGING_PEER=debug
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_ADDRESS=peer0.org2.liqi.com:7051
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=deploy_custom
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    networks:
+      - custom
+    ports:
+      - 8051:7051
+      - 8053:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/org2.liqi.com/peers/peer0.org2.liqi.com/msp:/etc/hyperledger/fabric/msp
+        - ./crypto-config/peerOrganizations/org2.liqi.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.liqi.com
+
+  peer1.org2.liqi.com:
+    container_name: peer1.org2.liqi.com
+    image: hyperledger/fabric-peer:1.4.1
+    environment:
+      - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
+      - CORE_PEER_ID=peer1.org2.liqi.com
+      - CORE_LOGGING_PEER=debug
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_LOCALMSPID=Org2MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      - CORE_PEER_ADDRESS=peer1.org2.liqi.com:7051
+      - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=deploy_custom
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric
+    command: peer node start
+    networks:
+      - custom
+    ports:
+      - 8056:7051
+      - 8058:7053
+    volumes:
+        - /var/run/:/host/var/run/
+        - ./crypto-config/peerOrganizations/org2.liqi.com/peers/peer1.org2.liqi.com/msp:/etc/hyperledger/fabric/msp
+        - ./crypto-config/peerOrganizations/org2.liqi.com/users:/etc/hyperledger/msp/users
+        - ./config:/etc/hyperledger/configtx
+    depends_on:
+      - orderer.liqi.com
+
+  cli: # peer节点客户端 交易都是从客户端发起 需要用到User证书
+    container_name: cli
+    image: hyperledger/fabric-tools
+    tty: true
+    environment:
+      - GOPATH=/opt/gopath
+      - CORE_LOGGING_LEVEL=DEBUG
+      - CORE_PEER_ID=cli
+      - CORE_PEER_ADDRESS=peer0.org1.liqi.com:7051
+      - CORE_PEER_LOCALMSPID=Org1MSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/peer/users/Admin@org1.liqi.com/msp
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/
+    command: /bin/bash
+    networks:
+      - custom
+    volumes:
+      - ./../chaincode:/opt/gopath/src/github.com/chaincode # 链码路径注入
+      - ./config:/etc/hyperledger/configtx
+      - ./crypto-config/peerOrganizations/org1.liqi.com/:/etc/hyperledger/peer
